@@ -1838,3 +1838,37 @@ Evidence is in the ignored `runs/` directories above and
 The comparison driver is `runs/compare_floor_runs.py`. This verifies the change
 and packaging locally; it does not publish a release or validate a particular
 RTC application.
+
+
+## 2026-10-07 — 2026.10.0 published release
+
+Annotated tag `v2026.10.0` identifies commit
+`dffeb8974f1215008dd16b8b4c08693f13ffb844`.
+[Release workflow run 37615487361](https://github.com/greoux-research/ies-optimiser/actions/runs/37615487361)
+completed successfully: **45 of 45 jobs passed**. The run built and tested the
+four platform wheels and source distribution, published through Trusted
+Publishing to TestPyPI, verified installations, and then published the same
+artifacts to PyPI and verified installations there. Both index verification
+stages passed on Linux x86_64, macOS arm64 and x86_64, and Windows x86_64,
+with Python 3.11 and 3.14.
+
+Published package: [PyPI 2026.10.0](https://pypi.org/project/ies-optimiser/2026.10.0/),
+[TestPyPI 2026.10.0](https://test.pypi.org/project/ies-optimiser/2026.10.0/).
+The five filenames and SHA-256 digests obtained from both indexes match exactly.
+These published-file checksums are recorded below; the workflow also checked
+its release-dist SHA256SUMS before each upload. That artifact's manifest was
+not independently downloaded for this record.
+
+| Published artifact | Bytes | SHA-256 |
+|---|---:|---|
+| `ies_optimiser-2026.10.0-py3-none-macosx_10_15_x86_64.whl` | 114071 | `92d0de847d1773bd6ae25c96430ea3baa9ed6069f9171be32277a8ab084ceb8e` |
+| `ies_optimiser-2026.10.0-py3-none-macosx_11_0_arm64.whl` | 114246 | `982f50e0c7ae76ee16cef4f114b484a814b3ca89da68b630cefaabf2c4dd97d8` |
+| `ies_optimiser-2026.10.0-py3-none-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl` | 112929 | `87c4e23e23cbaebab3d40a97d12a6644b83a302f1403d72b2a0500c8f9c1a229` |
+| `ies_optimiser-2026.10.0-py3-none-win_amd64.whl` | 265786 | `b6be60463cb5245bee3ccc5988d727ae8055340bed6d912b02147832b3f8866c` |
+| `ies_optimiser-2026.10.0.tar.gz` | 91031 | `b0dd67ead7a88633dc25fd773a8135e8cb3b0676529a095a24f3637e58cd4711` |
+
+GitHub release: [IES Optimiser 2026.10.0](https://github.com/greoux-research/ies-optimiser/releases/tag/v2026.10.0).
+This release adds hourly coverage floors and result format 2. The preceding
+local verification establishes unchanged numerical behaviour without the new
+option; the release workflow establishes installation and artifact verification
+across the supported platforms. It does not validate a particular RTC application.
