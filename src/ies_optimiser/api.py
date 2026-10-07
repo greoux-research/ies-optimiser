@@ -58,7 +58,7 @@ class SolveResult:
     document : dict
         The result, a fresh JSON-compatible dictionary with the structure the
         command line writes (docs/ies-optimiser-io-file-structure.md; JSON Schema:
-        ies_optimiser/data/ies-optimiser-result-1.schema.json). When the solve was not optimal it
+        ies_optimiser/data/ies-optimiser-result-2.schema.json). When the solve was not optimal it
         holds the case's input fields, the solver status and provenance, and
         no results.
     status : str
@@ -174,12 +174,13 @@ def to_canonical(case: Union[Case, Mapping[str, Any]]) -> Dict[str, Any]:
     return formats.canonical_document(parse_case(case))
 
 
-def check_options(options: Optional[Mapping[str, Any]]) -> Dict[str, float]:
-    """Validate run options, returning them as floats in the order given.
+def check_options(options: Optional[Mapping[str, Any]]) -> Dict[str, Union[float, str, List[float]]]:
+    """Validate run options, returning a new mapping of normalised supplied forms in order.
 
     Names and admissible values are those of models.SolveOptions:
     'carbon-constraint' (kg CO2eq per MWh of primary annual electricity demand,
-    any finite value) and 'non-served-power-constraint' (a fraction in [0, 1]).
+    any finite value), 'non-served-power-constraint' (a fraction in [0, 1]),
+    and 'hourly-coverage-floor' (number, CSV path string or list in [0, 1]).
 
     Raises
     ------
@@ -272,6 +273,9 @@ def validate(case: CaseLike, *, options: Optional[Mapping[str, Any]] = None,
     stages['structure'] = 'passed'
     try:
         run, mode = _profile_base(cfg, source)
+        series, origin = u.resolve_coverage_floor(opts.get('hourly-coverage-floor'), run)
+        if series is not None:
+            opts = {**opts, 'hourly-coverage-floor': series}
     except InputError as e:
         return report(e, 'semantics')
     resolution = {'mode': mode, 'base': run.profile_base}
@@ -335,6 +339,10 @@ def solve(case: CaseLike, *,
         figure. An infeasible or otherwise unsuccessful solve is a status, not
         an exception.
 
+    Invalid inputs, an infeasible optimisation and failed accounting checks are different outcomes;
+    report them distinctly. Do not silently relax coverage targets, change demand or loosen numerical
+    tolerances to obtain a successful result.
+
     Side effects: none on the caller's data -- the case, including nested
     lists, dicts and arrays, is copied before use and left unchanged. No file
     is written. Diagnostics go to the 'ies_optimiser' logger.
@@ -354,6 +362,9 @@ def solve(case: CaseLike, *,
     opts = check_options(options)
     model, fmt, _ = formats.parse(document_in)
     cfg, profile_mode = _profile_base(cfg, source)
+    series, origin = u.resolve_coverage_floor(opts.get('hourly-coverage-floor'), cfg)
+    if series is not None:
+        opts = {**opts, 'hourly-coverage-floor': series}
 
     work = formats.internal_document(model)          # private: gains solver objects below
     stat = {'time': time.time(), 'capa': 0, 'outp': 0, 'cons': 0}
@@ -388,7 +399,8 @@ def solve(case: CaseLike, *,
         document['solver'] = {'stat_succ': 0}
         objective_value = None
 
-    document['provenance'] = u.provenance(None if source is None else str(source), opts, document, cfg, profile_mode)
+    document['provenance'] = u.provenance(None if source is None else str(source), opts, document, cfg, profile_mode,
+                                           floor_origin=origin)
     if source is None:
         document['provenance']['input'] = '<in-memory>'
         in_memory = formats.canonical_document(document_in) if isinstance(document_in, Case) else document_in
@@ -440,10 +452,12 @@ def write_result(result: Union[SolveResult, Mapping[str, Any]], path: PathLike) 
         json.dump(document, f, indent=4)
 
 
-def output_path(input_path: PathLike, options: Optional[Mapping[str, float]] = None) -> str:
+def output_path(input_path: PathLike, options: Optional[Mapping[str, Any]] = None,
+                floor_sha256: Optional[str] = None) -> str:
     """The command line's result path: beside the input, '.json' -> '.ies-optimiser.json',
-    one '.name_value' segment per option, in the order given."""
-    return u.output_path(input_path, dict(options or {}))
+    one '.name_value' segment per option, in the order given. For a list or CSV floor,
+    pass floor_sha256 from result provenance; no file is read here."""
+    return u.output_path(input_path, dict(options or {}), floor_sha256=floor_sha256)
 
 
 def _jsonable(node: Any) -> Any:

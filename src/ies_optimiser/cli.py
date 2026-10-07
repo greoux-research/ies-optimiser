@@ -31,6 +31,14 @@ model, and is recorded in the result's provenance (profile_resolution).
 With --json, validate prints exactly one JSON document on stdout; everything
 else (logs, diagnostics in text form) goes to stderr.
 
+Run options:
+    carbon-constraint: kg CO2eq per MWh of annual electricity demand.
+    non-served-power-constraint: cap on annual unmet electricity, as a share.
+    hourly-coverage-floor: minimum share of each hour's electricity demand served;
+        scalar, CSV path or comma-separated list, values in [0, 1] used as given.
+        CSV paths resolve against the input file directory or --profile-base,
+        never the working directory. A name without .csv needs a separator (./floors).
+
 Exit status:
     0  solve: optimal and every accounting check passed (result written);
        validate: valid; schema, --help, --version: printed
@@ -95,7 +103,9 @@ def solve(args: List[str]) -> int:
         log.error('%s', e)
         return 1
 
-    api.write_result(result, api.output_path(json_file, opts))
+    floor = result.document['provenance'].get('hourly_coverage_floor')
+    api.write_result(result, api.output_path(json_file, opts,
+                     floor_sha256=floor['values_sha256'] if floor else None))
 
     # A run that did not reach an optimal solution exits 1; the file is still
     # written and its status says why. An optimal solve whose accounts fail to

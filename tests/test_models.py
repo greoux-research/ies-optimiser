@@ -88,7 +88,7 @@ def test_legacy_and_its_canonical_form_solve_identically(horizon):
         d['solver'].pop('stat_time')
     assert a == b
     assert (pa['input_format'], pb['input_format']) == ('legacy', 'canonical')
-    assert pa['result_format_version'] == pb['result_format_version'] == 1
+    assert pa['result_format_version'] == pb['result_format_version'] == 2
 
 
 def test_canonical_serialisation_reloads_to_the_same_case():
@@ -306,7 +306,7 @@ def test_numpy_profiles_are_accepted_at_the_boundary_only(horizon):
 
 
 def test_options_are_validated_by_the_options_model():
-    assert SolveOptions.names() == ['carbon-constraint', 'non-served-power-constraint']
+    assert SolveOptions.names() == ['carbon-constraint', 'hourly-coverage-floor', 'non-served-power-constraint']
     assert api.check_options({'non-served-power-constraint': 0, 'carbon-constraint': -3}) == \
         {'non-served-power-constraint': 0.0, 'carbon-constraint': -3.0}
     for bad, code in [({'carbon-constraint': float('nan')}, 'value.not_finite'),

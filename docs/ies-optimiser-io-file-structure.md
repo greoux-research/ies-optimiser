@@ -109,7 +109,7 @@ Demand objects represent the final consumption of electricity and other commodit
 - `profile` — optional CSV with 8760 hourly values. May be provided as (1) a CSV file path, (2) an array of 8760 values, or (3) empty for a flat profile. A relative file path resolves against the directory of the input file (or an explicit `--profile-base`), never the working directory; an absolute path is used as written. The bundled datasets name CSVs kept beside the input, e.g. `"dmnd.csv"`. The same rule applies to every profile field, including `inflow_profile`.
 - `supply_sources` — PtX processes supplying the X commodity (a list of `iden` of PtX processes is expected here)
 - `var_cost_ns` — penalty for unmet demand (\$/MWh, \$/kg, \$/m³)
-- `l_ns` — lower and upper bounds `[low, high]` applied to **each hourly** unmet-demand variable, not to the annual total. Unmet demand can never exceed the demand of the hour, whatever `high` says: the effective bound is `low <= unmet[i] <= min(high, demand[i])`. `[0, 0]` forces full service in every hour. `low` must not exceed the demand of any hour (including hours of zero demand); such an input is refused, naming the hour. There is no annual cap on unmet demand for an X commodity; the optional `non-served-power-constraint` run option caps annual unmet **electricity** only.
+- `l_ns` — lower and upper bounds `[low, high]` applied to **each hourly** unmet-demand variable, not to the annual total. Unmet demand can never exceed the demand of the hour, whatever `high` says: the effective bound is `low <= unmet[i] <= min(high, demand[i])`. For electricity with `hourly-coverage-floor`, it tightens to `min(high, (1 - floor[i]) * demand[i])`; a conflicting lower bound is refused. `[0, 0]` forces full service in every hour. `low` must not exceed the demand of any hour (including hours of zero demand); such an input is refused, naming the hour. There is no annual cap on unmet demand for an X commodity; the optional `non-served-power-constraint` run option caps annual unmet **electricity** only.
 - `var_cost_ns` — must be `>= 0`. Zero is valid: it makes unmet demand free, but the hourly bound above still applies. A negative penalty is refused: it would pay the model to leave demand unmet.
 
 ##### Outputs
@@ -117,6 +117,8 @@ Demand objects represent the final consumption of electricity and other commodit
 - `output_ns` — hourly unmet demand (always present; empty for an inactive commodity demand)
 - `shadow_prices["demand_match"]` — hourly dual of the demand-balance row (\$/unit): the rate at which the objective changes as the right-hand side of that row moves **with every variable bound held fixed**. Defined for electricity and for every active commodity X. It is the marginal cost of demand only where unmet demand is not held at its upper bound by demand itself; see `demand_marginal`.
 - `shadow_prices["demand_marginal"]` — hourly **dual-based marginal value** of demand (\$/unit). Unmet demand is bounded by `min(l_ns[1], demand)`, so where it sits at a bound set by demand, demand enters that bound as well as the balance row; `demand_marginal` adds the shortfall variable's reduced cost there, and elsewhere equals `demand_match`. Example: generation at 100 \$/MWh, shortage at 10 \$/MWh, demand entirely shed — `demand_match` is 100, `demand_marginal` is 10, and the objective indeed rises by 10 \$ per extra MWh. **What it is, exactly:** a subgradient of the objective as a function of that hour's demand, with the carbon budget and reliability cap held fixed (both are otherwise multiples of the annual total). It always lies between the left and right derivatives and equals the derivative wherever they agree. At a **breakpoint** — demand exactly zero, exactly at a capacity limit, at a change of marginal unit — it may be any value between them and need not equal either: at zero demand with a 100 \$/MWh unit it can read 0 although the next MWh costs 100; at a 1 MW limit with shortage at 1000 \$/MWh it lies between 100 (the last MWh) and 1000 (the next). Exact one-sided derivatives would need a parametric re-solve for each hour and are not computed.
+With an electricity floor, `demand_marginal` adds `(1 - floor[h]) * reduced_cost` where the floor sets the upper bound. A tie with `l_ns[1]` uses the existing strict `<` convention (bound attributed to `l_ns`); fixed variables and zero demand retain the existing subgradient interpretation. Commodity demands keep the existing computation rule.
+
 - `shadow_prices["carbon_cap"]` — marginal value of relaxing the carbon cap by one unit (\$/unit), or `0` when the cap is not binding. Electricity demand only.
 - `shadow_prices["carbon_cap_detail"]` — what was observed, kept separate from the interpretation above: `raw_dual`, `cap`, `activity`, `slack`, `binding`, and `binding_zero_dual`. The last records an observation and not a diagnosis: a binding row whose dual is zero may be degenerate, or its marginal value may genuinely be zero and unique — a cap set exactly where the solution would have landed anyway binds and is worth nothing. Telling those apart requires analysis IES Optimiser does not perform.
 - `shadow_prices["reliability_cap"]` — marginal value of relaxing the annual unmet-electricity cap by one unit (\$/unit), or `0` when that cap is not binding. Electricity demand only.
@@ -480,7 +482,7 @@ commodity allocation.
 - `allocated` — `output`, `share`, `cost`, `emis` allocated to final demands. When allocation is undefined the share is `null` and cost and emissions are 0: nothing was allocated.
 - `unallocated` — the same four quantities for output that no final demand takes, with its components `electricity_surplus`, `unused_heat` (electricity-equivalent) and `unassigned_process_use`. When allocation is undefined, the whole system cost and emissions are reported here.
 - `surplus` — annual totals: `electricity` (MWh), `heat` (MWh of heat), `spill` (MWh), `products` (per demand, in its unit), `unassigned_product_supply` (per process no active demand names).
-- `checks` — machine-readable accounting checks, each `{residual, tolerance, ok}`: `electricity_balance`, `heat_balance`, `product_balance`, `shortfall_bounds`, `storage_balance` (transitions and closure, electricity and product stores), `carbon_cap`, `reliability_cap`, `output_reconciliation`, `cost_reconciliation`, `emissions_reconciliation`, `allocated_cost_reconciliation`, `objective_reconciliation` (`system cost + shortage penalties = solver objective + fixed-capacity charges`). Only the checks that apply to the run are present. Feasibility checks use `1e-5 + 1e-7 × scale`, reconciliation identities `1e-6 + 1e-9 × scale` (`fcn.Feas_*`, `fcn.Recon_*`).
+- `checks` — machine-readable accounting checks, each `{residual, tolerance, ok}`: `electricity_balance`, `heat_balance`, `product_balance`, `shortfall_bounds`, `storage_balance` (transitions and closure, electricity and product stores), `carbon_cap`, `reliability_cap`, `coverage_floor` (only with the floor option; maximum hourly violation of its unmet-demand bound), `output_reconciliation`, `cost_reconciliation`, `emissions_reconciliation`, `allocated_cost_reconciliation`, `objective_reconciliation` (`system cost + shortage penalties = solver objective + fixed-capacity charges`). Only the checks that apply to the run are present. Feasibility checks use `1e-5 + 1e-7 × scale`, reconciliation identities `1e-6 + 1e-9 × scale` (`fcn.Feas_*`, `fcn.Recon_*`).
 - `accounting_ok` — `true` when every check passed. IES Optimiser exits with status **3** when an optimal solve fails any of them.
 
 The totals reconcile by construction of the accounts:
@@ -499,7 +501,7 @@ Written into every result, identifying what produced it.
 
 - `ies_optimiser_version` — the version of the package that solved the problem, from its distribution metadata (`pyproject.toml` in a source tree that is not installed), or `unknown`.
 - `installation` — `{kind, package_dir}`: `wheel` (an installed distribution), `editable` (an editable install of a checkout), `source` (a checkout on the path, not installed) or `unknown`, and the directory of the package that ran.
-- `result_format_version` — the result format (1), described by the result schema (`ies-optimiser schema result`).
+- `result_format_version` — the result format (2), described by the result schema (`ies-optimiser schema result`).
 - `input_format` — `canonical` or `legacy`: the format the input was read in.
 - `input`, `input_sha256` — the input file named as the source and its SHA-256 digest (for a case supplied in memory without a source, `<in-memory>` and the digest of the document as given).
 - `case_sha256` — the SHA-256 of the case actually solved, as canonical JSON (inputs only, defaults explicit, keys sorted): the same for a legacy document and its canonical form. A case edited in memory and solved with its original file as the source has the file's `input_sha256` but its own `case_sha256`.
@@ -508,7 +510,8 @@ Written into every result, identifying what produced it.
 - `profiles_sha256` — each declared profile reference, as written in the input, with the digest of the file actually read for it. Profiles are named by path rather than carried in the input, and they determine the answer as directly as anything inside it.
 - `profile_files` — for each declared reference, the file actually read (`resolved`, absolute) and its `sha256`.
 - `profile_resolution` — how relative profile paths were resolved: `mode` is `input-directory` (the input file's directory, the default), `explicit` (a `--profile-base` or `RunConfig.profile_base`), or `none` (an in-memory case with no base, which accepts only inline, empty or absolute profiles); `base` is the absolute directory used, or `null`. Moving a case changes `input_resolved`, `profile_files[*].resolved` and `base`, never the digests.
-- `options` — the `name=value` options applied to the run.
+- `options` — the options applied to the run: numbers for existing options, the full effective numeric list for `hourly-coverage-floor` (all supplied forms).
+- `hourly_coverage_floor` — origin and digests of the floor, present only with that option; see the format-2 description below.
 - `hours`, `storage_closes_the_year` — the horizon, and whether storage is required to end the year where it began.
 - `git_scope` — Git is consulted only when IES Optimiser runs from a source checkout (editable or source): `ies_optimiser` when the checkout is the top of its own repository; `enclosing` when the nearest repository is another project that contains it (vendored); `null` otherwise, and always `null` for an installed wheel, whose revision the repository around a virtual environment does not describe.
 - `git_revision`, `git_dirty` — the commit IES Optimiser's own checkout is on, and whether it still matches it. Both are `null` unless `git_scope` is `ies_optimiser`: an enclosing repository's commit does not identify IES Optimiser.
@@ -539,3 +542,43 @@ The solver object provides diagnostics for each optimisation run: status, run ti
 > than `-1`), because a constant cannot change the optimum. `cost` above includes
 > them. When comparing the two, reconcile with
 > `system cost + shortage penalties = solver objective + fixed-capacity charges`.
+
+
+#### Run options and format-2 floor provenance
+
+Run options are supplied as `name=value`, not as case fields:
+
+- `carbon-constraint`: kg CO2eq per MWh of annual final electricity demand.
+- `non-served-power-constraint`: maximum annual unmet-electricity share.
+- `hourly-coverage-floor`: minimum served share of each hour's own final
+  electricity demand, excluding Power-to-X consumption and commodity demand.
+  Scalar, CSV path or comma-separated list; finite values in `[0, 1]` used as
+  given, never normalised or rescaled. A list or CSV has exactly `RunConfig.hours`
+  values. All-zero values and zero electricity demand are allowed.
+
+CLI classification first tries `float`; otherwise a `.csv` suffix (case
+insensitive) or `/` or `\` means a path; otherwise it parses a comma-separated
+list. File names can contain commas. A file without `.csv` needs a separator
+(e.g. `./floors`). Python accepts a number, string path or numeric list: a string
+is always a path. CSVs have one value per row, no header, and relative paths
+resolve against the input file directory or `--profile-base` / `RunConfig.profile_base`,
+never the working directory. An in-memory case needs `source` or an explicit base
+for relative paths. Resolution and the CSV read occur once per operation.
+
+Format 2 permits numeric lists in `provenance.options`: the floor there is always
+the full effective series, replayable without its CSV. The optional
+`provenance.hourly_coverage_floor` block has `form` (scalar/list/csv), `declared`
+(scalar or path, null for list), `resolved` (CSV path only), `file_sha256` (the
+bytes parsed only), and `values_sha256` (effective float64 little-endian values,
+with signed zero normalised). The origin block and `coverage_floor` check are
+absent without the option. That check counts towards `accounting_ok`.
+
+Output names use `str(float(value))` for a scalar, or the first 12 hex digits of
+`values_sha256` for a list/CSV; equivalent list and CSV values name the same file.
+Replay using `provenance.options` reproduces the floor exactly. Reproducing the
+whole optimisation needs the same case and other referenced profiles, the same
+run configuration (hours, storage closure, profile base), and a compatible
+numerical environment; equally optimal dispatches can differ across solver
+builds. Scalar-origin replay through the effective list uses a digest filename
+instead of `_0.9`. Format-1 results remain valid historical documents; the current
+schema is `ies-optimiser-result-2.schema.json` and no converter is provided.

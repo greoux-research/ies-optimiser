@@ -79,7 +79,7 @@ def input_schema() -> Dict[str, Any]:
 
 
 def result_schema() -> Dict[str, Any]:
-    """The result schema (result_format_version 1)."""
+    """The result schema (result_format_version 2)."""
     return _envelope(Result.model_json_schema(by_alias=True, mode='validation'), 'result', RESULT_FORMAT_VERSION,
                      'IES Optimiser result, format ' + str(RESULT_FORMAT_VERSION),
                      'An IES Optimiser result: OptimalResult when solver.stat_succ is 1 (check system.accounting_ok), '

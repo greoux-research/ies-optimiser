@@ -5,7 +5,7 @@
 """The structure of an IES Optimiser result document, as typed models.
 
 These models describe what solve() returns and the command line writes; they
-exist to generate the result JSON Schema (ies_optimiser/data/ies-optimiser-result-1.schema.json)
+exist to generate the result JSON Schema (ies_optimiser/data/ies-optimiser-result-2.schema.json)
 and to check results in tests. IES Optimiser does not build its results through them:
 the serialised form is the one documented in docs/ies-optimiser-io-file-structure.md,
 and these models follow it exactly.
@@ -27,14 +27,14 @@ applicable (a commodity with zero demand, or no output to allocate), and
 ``carbon_cap`` / ``reliability_cap`` are -1 when the option was not given.
 """
 
-from typing import Annotated, Any, Dict, Literal, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import ConfigDict, Field, PlainValidator, RootModel, StrictBool, StrictInt, StrictStr, WithJsonSchema
 
 from ies_optimiser import models as m
 from ies_optimiser.models import FiniteList, Real
 
-RESULT_FORMAT_VERSION = 1
+RESULT_FORMAT_VERSION = 2
 """Recorded in every result as provenance.result_format_version."""
 
 
@@ -260,10 +260,20 @@ class Installation(_Result):
     package_dir: StrictStr = Field(description='The directory of the ies_optimiser package that ran.')
 
 
+class HourlyCoverageFloor(_Result):
+    """Origin of the effective hourly electricity coverage floor."""
+    form: Literal['scalar', 'list', 'csv'] = Field(description='Form supplied by the caller.')
+    declared: Optional[Union[Real, StrictStr]] = Field(description='Supplied scalar or CSV path; null for a list.')
+    resolved: Optional[StrictStr] = Field(description='Resolved CSV path; null for scalar or list.')
+    file_sha256: Optional[StrictStr] = Field(description='SHA-256 of the CSV bytes parsed; null without a CSV.')
+    values_sha256: StrictStr = Field(description='SHA-256 of effective float64 little-endian values, with signed '
+                                    'zero normalised; first twelve digits name list and CSV outputs.')
+
+
 class Provenance(_Result):
     """What produced the result: code, inputs, options, environment."""
     ies_optimiser_version: StrictStr
-    result_format_version: Literal[1]
+    result_format_version: Literal[2]
     input_format: Literal['canonical', 'legacy']
     input: StrictStr = Field(description='The input path as given, or \'<in-memory>\'.')
     input_resolved: Optional[StrictStr]
@@ -276,7 +286,10 @@ class Provenance(_Result):
     profiles_sha256: Dict[str, Optional[StrictStr]]
     profile_files: Dict[str, ProfileFile]
     profile_resolution: ProfileResolution
-    options: Dict[str, Real]
+    options: Dict[str, Union[Real, List[Real]]]
+    hourly_coverage_floor: Optional[HourlyCoverageFloor] = Field(
+        None, description='Present with hourly-coverage-floor: declared origin and effective-series digest. '
+        'The effective series in options reproduces the floor without the original CSV.')
     hours: StrictInt
     storage_closes_the_year: StrictBool
     solver: StrictStr

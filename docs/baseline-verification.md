@@ -1743,3 +1743,98 @@ Neither this nor any earlier stage validates an application of the model.
 **Remaining:** the GitHub release for tag `v2026.9.0` (step 5 of
 `docs/releasing.md`), and the off-disk backup of the evidence archive and
 history bundle.
+
+---
+
+## 2026-10-07 — hourly-coverage-floor (local, uncommitted)
+
+**Preconditions and scope.** The requested checkout was
+`/home/leo/Documents/ren-rtc/ies-optimiser`, clean at
+`3ba1fd9aeda2f5e6f74d8ec660ea010f71af5f5a` (2026.9.0), rather than the drafting
+path in the implementation guide. Read `AGENTS.md`, the modelling approach and
+API guide before editing. `python -m pip install -e ".[dev]"` succeeded; the
+pre-change `python -m pytest` passed **589 tests, 10 skipped**, in 114.24 s.
+Implemented version 4.2 of `IESO-evolution.md`: one run option, tightened unmet
+electricity bounds, the bound's marginal-value slope, accounting check,
+resolve-once CSV handling, replayable provenance, names, diagnostics and public
+interface documentation. No variables, rows, objective terms, solver settings,
+thermodynamics, examples, datasets or stored reference results were changed.
+No commit or push was made.
+
+**Environment.** Linux x86_64 (Linux 7.0.0-34-generic, glibc 2.43), Python 3.14.4,
+NumPy 2.5.3, OR-Tools 9.15.6755, Pydantic 2.13.5. The editable install's compiled
+thermodynamics executable SHA-256 was
+`171074625791bb136089ab66d7005c40e02eba478144a8839fe9d13f98aae426`.
+The original Python package was copied before editing into the ignored
+`runs/coverage-floor-original/`, with this same executable. Its baseline
+interpreter disables the editable-install import redirect so the preserved
+original modules, not the modified checkout, run; format 1 and its package path
+were explicitly checked before baseline solves.
+
+**Numerical verification without the option.** Ran the unchanged
+`tools/run_cases.sh` for all eight bundled annual configurations using the
+preserved original and the modified editable package, respectively into fresh
+`runs/coverage-floor-reference/` and `runs/coverage-floor-after/` directories.
+Also solved all three synthetic configurations in `examples/expected.json`
+into `runs/coverage-floor-examples-before/` and `runs/coverage-floor-examples-after/`.
+All solves were optimal and passed accounting checks. Default
+`tools/compare_outputs.py` reported **IDENTICAL for all eleven comparisons**.
+An additional recursive comparison required identical numeric types and exact
+IEEE-754 float bytes (excluding provenance and solver time), and passed all
+eleven: the numerical results are **bit-identical**. `tools/check_invariants.py`
+passed all eleven modified results. Problem sizes are identical.
+
+`result_format_version` changed **1 → 2 intentionally (metadata only)**.
+Without the option there is no `coverage_floor` check or
+`hourly_coverage_floor` provenance block. Apart from the format version and
+ordinary execution provenance (timings, code hashes, paths and environment),
+the results are unchanged. Earlier verification entries and `results/` remain
+untouched.
+
+The immutable annual references in `results/elec-grid-2026-09-26/` were produced
+under macOS arm64, Python 3.9.6 and NumPy 2.0.2, with OR-Tools 9.15.6755. Their
+hourly dispatch and surplus differ on this Linux machine even with the original
+package; they are not same-environment references. Against them, all eight
+modified annual results passed the repository's cross-environment contract:
+optimal, accounting_ok, independent invariants, identical problem size,
+objective within 1e-10 relative, capacities within 1e-6 + 1e-7 relative, emissions
+within 1e-9 relative where the carbon cap binds, and cogeneration coefficients
+within one unit in the sixth significant digit. The exact numerical preservation
+claim is established against the preserved original in the same environment,
+not by rewriting the historical results or widening tolerances.
+
+**Tests and packaging.** The full post-change development suite passed
+**656 tests, 10 skipped**, in 299.43 s. The subsequently expanded floor suite
+passed **69 tests** (including two additional checks added after that full-suite
+collection). It covers analytic capacity planning and finite-difference demand
+and floor sensitivities, controlling bounds and subgradients, all forms and
+boundaries, CSV resolution and one-byte-read semantics, structured refusals and
+CLI JSON, provenance/replay, no mutation, commodity isolation, schemas, help,
+and unsuccessful-result provenance. `python -m mypy` passed all ten boundary
+modules. Schema regeneration and `tools/generate_schemas.py --check` passed;
+the input schema is unchanged and the package contains the generated format-2
+result schema, with the format-1 package schema removed.
+
+`python -m build` and `python tools/check_dist.py dist/*` passed. The final wheel
+was installed into `runs/coverage-floor-wheel-env/`, reusing the same dependency
+versions via a dependency search path, and tested from a copied bundle in
+`runs/coverage-floor-wheel-bundle/`. Package provenance confirmed a wheel with
+no checkout; all installed Python files were checked byte-for-byte against the
+final wheel. `python -m pytest tests_installed` passed **47 tests, 2 skipped, in 864.38 s**,
+including the new public scalar/list example and installed floor schema/result
+check. The two optional environment-isolation tests are skipped because this
+host retains Git and compilers; this is an installed-wheel test, not the fully
+isolated release CI environment.
+
+| Artifact (local test build; version not advanced or published) | Bytes | SHA-256 |
+|---|---:|---|
+| `ies_optimiser-2026.9.0-py3-none-linux_x86_64.whl` | 112,908 | `d30f893528cc357e064a89f4bf950393e453044e0348fb195d8ca7e0e402a5ea` |
+| `ies_optimiser-2026.9.0.tar.gz` | 91,039 | `1bc97511d8d340f5f3e328c572d25400b107c4810e7c92496b5f727c0fff7d8d` |
+
+Evidence is in the ignored `runs/` directories above and
+`runs/coverage-floor-pytest-final.txt`, `coverage-floor-focused-tests.txt`,
+`coverage-floor-mypy.txt`, `coverage-floor-build.txt`, `coverage-floor-dist.txt`,
+`coverage-floor-installed-tests-final.txt`, and `coverage-floor-comparison.txt`.
+The comparison driver is `runs/compare_floor_runs.py`. This verifies the change
+and packaging locally; it does not publish a release or validate a particular
+RTC application.

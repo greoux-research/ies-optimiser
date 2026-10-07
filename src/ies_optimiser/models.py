@@ -517,10 +517,36 @@ class Case(_Model):
 
 # --- run options --------------------------------------------------------------------
 
+def _coverage_floor(v: Any) -> Any:
+    accepted = 'must be a number, a non-empty CSV path string, or a list of numbers (not booleans)'
+    if isinstance(v, str) and v:
+        return v
+    if not (_is_real(v) or isinstance(v, list)):
+        raise PydanticCustomError('value.type', accepted)
+    values = v if isinstance(v, list) else [v]
+    for i, value in enumerate(values):
+        context = {'index': i} if isinstance(v, list) else {}
+        if not _is_real(value):
+            raise PydanticCustomError('value.type', accepted, context)
+        if not 0 <= value <= 1 or not math.isfinite(value):
+            raise PydanticCustomError('option.floor_range', 'must be finite and in [0, 1]', context)
+    return v
+
+
+def _floor_schema_extra(schema: Dict[str, Any]) -> None:
+    schema.pop('default', None)
+
+
+CoverageFloor = Annotated[Optional[Union[float, str, List[float]]], PlainValidator(_coverage_floor),
+                         WithJsonSchema({'anyOf': [_number_schema(ge=0, le=1),
+                             {'type': 'string', 'minLength': 1, 'description': 'CSV path'},
+                             {'type': 'array', 'items': _number_schema(ge=0, le=1)}]})]
+
+
 class SolveOptions(_Model):
     """Run options, serialised under the command-line names.
 
-    Both are optional; an absent option imposes no constraint.
+    All are optional; an absent option imposes no constraint.
     """
 
     carbon_constraint: OptionalReal = Field(
@@ -530,6 +556,13 @@ class SolveOptions(_Model):
     non_served_power_constraint: OptionalFraction = Field(
         None, alias='non-served-power-constraint', description='Cap on annual unmet electricity, as a fraction '
         'of annual electricity demand, in [0, 1].', examples=[0.05])
+
+    hourly_coverage_floor: CoverageFloor = Field(
+        None, alias='hourly-coverage-floor', json_schema_extra=_floor_schema_extra,
+        description='Minimum served share of electricity demand only in each hour: unmet[h] <= '
+        '(1 - floor[h]) * demand[h]. Number, CSV path string, or list of numbers in [0, 1]; '
+        'values used as given, never rescaled. A string is a path. Relative paths resolve against '
+        'the input file directory or RunConfig.profile_base, never the working directory.')
 
     @classmethod
     def names(cls) -> List[str]:

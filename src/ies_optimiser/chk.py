@@ -20,6 +20,7 @@ document built from a validated model (formats.internal_document) and check:
 * profiles: every profile that will be read resolves to a file (or is inline),
   and holds exactly `hours` finite, non-negative values that are not all zero;
 * hourly shortfall bounds: l_ns[0] does not exceed the demand of any hour;
+* hourly electricity coverage floor: the lower shortfall bound respects the floor;
 * optionally, thermodynamics: the cogeneration coefficients of every
   heat-supplying unit can be obtained and are admissible (runs the packaged
   thermodynamics executable, ies_optimiser/_bin/ies-optimiser-thermo, or RunConfig.thermo_bin).
@@ -218,7 +219,7 @@ def topology(s):
                    path=pointer('generator', generators[name]))
 
 
-def shortfalls(s, cfg):
+def shortfalls(s, cfg, opts):
 
     """l_ns[0] against the demand of every hour (fcn.shortfall_bounds)."""
 
@@ -232,7 +233,8 @@ def shortfalls(s, cfg):
 
         dm = u.dm_h(dmd['profile'], dmd['total'], who, hours=cfg.hours, base=cfg.profile_base)
 
-        u.shortfall_bounds(dm, dmd['l_ns'], who, path=pointer(*demand_loc(n), 'l_ns'))
+        u.shortfall_bounds(dm, dmd['l_ns'], who, path=pointer(*demand_loc(n), 'l_ns'),
+                           floor=opts.get('hourly-coverage-floor') if n == 0 else None)
 
 
 def heat_suppliers(s: Dict[str, Any]) -> List[Tuple[int, Dict[str, Any], Dict[str, Any]]]:
@@ -287,7 +289,7 @@ def cogeneration(gen: Dict[str, Any], p2x: Dict[str, Any], cfg: u.RunConfig,
     return a, b
 
 
-def validate(s: Dict[str, Any], opts: Mapping[str, float], cfg: u.RunConfig = u.RunConfig(),
+def validate(s: Dict[str, Any], opts: Mapping[str, Any], cfg: u.RunConfig = u.RunConfig(),
              thermodynamics: bool = False) -> None:
 
     """
@@ -303,7 +305,7 @@ def validate(s: Dict[str, Any], opts: Mapping[str, float], cfg: u.RunConfig = u.
 
     topology(s)
 
-    shortfalls(s, cfg)
+    shortfalls(s, cfg, opts)
 
     if thermodynamics:
 
@@ -312,6 +314,6 @@ def validate(s: Dict[str, Any], opts: Mapping[str, float], cfg: u.RunConfig = u.
             cogeneration(gen, p2x, cfg, path=pointer('generator', n))
 
 
-def define(glop: Any, s: Dict[str, Any], opts: Mapping[str, float], stat: Dict[str, Any], cfg: u.RunConfig) -> None:
+def define(glop: Any, s: Dict[str, Any], opts: Mapping[str, Any], stat: Dict[str, Any], cfg: u.RunConfig) -> None:
 
     validate(s, opts, cfg)

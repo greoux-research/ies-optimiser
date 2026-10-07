@@ -234,7 +234,7 @@ def test_provenance_identifies_the_installed_code_and_executable(solved):
     assert pv['thermo_binary'] == fcn.Thermo_bin and pv['thermo_binary_origin'] == 'packaged'
     assert pv['source_files_sha256']['thermo/sim.bin'] == sha256(fcn.Thermo_bin)
     assert pv['source_files_sha256']['ies_optimiser/fcn.py'] == sha256(os.path.join(PACKAGE, 'fcn.py'))
-    assert pv['result_format_version'] == 1 and pv['input_format'] == 'canonical'
+    assert pv['result_format_version'] == 2 and pv['input_format'] == 'canonical'
     assert pv['source_matches_case'] is True and len(pv['case_sha256']) == 64
     gen = next(g for g in doc['generator'] if g['iden'] == 'nuclear')
     assert gen['type'] == 'elec + ther' and 0 < gen['a'] < 1 and gen['b'] > 0
@@ -246,3 +246,31 @@ def test_results_satisfy_the_result_schema(solved):
         validator = jsonschema.Draft202012Validator(json.load(f))
     for result in solved.values():
         validator.validate(result.document)
+
+
+def test_hourly_floor_public_interfaces():
+    """Discover and use the floor with only installed public interfaces."""
+    from ies_optimiser import RunConfig, validate, solve
+    from ies_optimiser.models import SolveOptions
+    from ies_optimiser.results import Result
+    schema=SolveOptions.model_json_schema(by_alias=True, mode='validation')
+    entry=schema['properties']['hourly-coverage-floor']
+    assert len(entry['anyOf']) == 3 and 'default' not in entry
+    assert entry['anyOf'][0]['minimum'] == 0 and entry['anyOf'][0]['maximum'] == 1
+    assert entry['anyOf'][1]['minLength'] == 1
+    for options in ({'hourly-coverage-floor': .9}, {'hourly-coverage-floor': [.9,.9]}):
+        case={
+            'format_version':1,
+            'demand':{'e':{'iden':'electricity','total':20.,'var_cost_ns':0.,'l_ns':[0,100.]},'x':[]},
+            'generator':[{'iden':'gen','type':'elec','capacity_factor':1.,'fix_cost_prod':3.,
+                          'var_cost_prod':0.,'var_emis_prod':0.,'l_prod':[0,100.],'c_prod':-1}],
+            'flex':[], 'p2x':[]}
+        config=RunConfig(hours=2)
+        assert validate(case,options=options,config=config).valid
+        result=solve(case,options=options,config=config)
+        assert result.optimal and result.accounting_ok
+        assert result.document['provenance']['result_format_version'] == 2
+        assert result.document['provenance']['options']['hourly-coverage-floor'] == [.9,.9]
+        assert result.document['system']['checks']['coverage_floor']['ok']
+        assert result.document['generator'][0]['c_prod'] == pytest.approx(9.)
+        Result.model_validate(result.document)

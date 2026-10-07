@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026.10.0 (unreleased)
+
+- Add the optional `hourly-coverage-floor` run option: scalar, CSV or inline list
+  bounds the unmet share of final electricity demand in every hour, without
+  adding variables or rows. Include its bound slope in demand marginal values
+  and its constraint in accounting checks.
+- Result format 2 widens `provenance.options` to numbers or numeric lists and
+  records effective floor values with a new `hourly_coverage_floor` origin block.
+  Equivalent list/CSV floors use a digest in output names; scalar names remain
+  readable. Version-1 results remain historical documents.
+- Numerical behaviour without the option is unchanged.
+- Follow repository profile conventions; floor file diagnostics additionally
+  state the resolution basis and `--profile-base` / `RunConfig.profile_base`.
+
+
 ## 2026.9.0 — 2026-09-27: first packaged release
 
 The first release installable with pip: `python -m pip install ies-optimiser`. Versions now follow the calendar scheme `YEAR.MONTH.PATCH` (earlier tags: `v26.05`, `v25.10`); release candidates are `2026.9.0rcN`. The candidate `2026.9.0rc1` was published to TestPyPI and verified from it on every supported platform.

@@ -56,7 +56,7 @@ def test_the_generation_command_agrees():
     assert out.returncode == 0, out.stdout
 
 
-@pytest.mark.parametrize('kind, version', [('input', 1), ('result', 1)])
+@pytest.mark.parametrize('kind, version', [('input', 1), ('result', 2)])
 def test_schemas_are_versioned_and_say_they_are_structural(kind, version):
     schema = json.loads(checked_in(kind))
     assert schema['x-ies-optimiser-format'] == {'kind': kind, 'version': version}

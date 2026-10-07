@@ -364,11 +364,11 @@ def canonical_json(case: Case) -> str:
 
 # --- run options ------------------------------------------------------------------------
 
-def validate_options(options: Mapping[str, Any]) -> Dict[str, float]:
+def validate_options(options: Mapping[str, Any]) -> Dict[str, Union[float, str, List[float]]]:
     """Validate run options against models.SolveOptions.
 
-    Returns the options as floats, in the order given (the order sets the
-    result file name).
+    Returns existing options as floats and the floor as a float, path or float
+    list, in the order given (the order sets the result file name).
 
     Raises
     ------
@@ -387,6 +387,14 @@ def validate_options(options: Mapping[str, Any]) -> Dict[str, float]:
         problems = []
         for d in diagnostics_from(e, {}):
             problems.append(Diagnostic(code=d.code, layer='options', message=d.message, entity='command line',
-                                       field=d.field))
+                                       field=d.field, hour=d.hour))
         raise InputError.from_diagnostics(problems) from None
-    return {str(name): float(value) for name, value in options.items()}
+    normalised: Dict[str, Union[float, str, List[float]]] = {}
+    for name, value in options.items():
+        if name == 'hourly-coverage-floor' and isinstance(value, str):
+            normalised[name] = value
+        elif name == 'hourly-coverage-floor' and isinstance(value, list):
+            normalised[name] = [float(v) for v in value]
+        else:
+            normalised[name] = float(value)
+    return normalised

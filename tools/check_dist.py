@@ -30,13 +30,13 @@ SDIST_ALLOWED = ['pyproject.toml', 'CMakeLists.txt', 'README.md', 'LICENSE', 'PK
                  'thermo/*.cpp', 'thermo/*.h', 'thermo/README.md']
 SDIST_REQUIRED = ['pyproject.toml', 'CMakeLists.txt', 'README.md', 'LICENSE', 'PKG-INFO', 'src/ies_optimiser/__init__.py',
                   'src/ies_optimiser/py.typed', 'src/ies_optimiser/data/ies-optimiser-input-1.schema.json',
-                  'src/ies_optimiser/data/ies-optimiser-result-1.schema.json', 'thermo/sim.cpp', 'thermo/Cogen.cpp',
+                  'src/ies_optimiser/data/ies-optimiser-result-2.schema.json', 'thermo/sim.cpp', 'thermo/Cogen.cpp',
                   'thermo/iesOptimiserH2O.cpp', 'thermo/Cogen.h', 'thermo/iesOptimiserH2O.h']
 WHEEL_ALLOWED = ['ies_optimiser/*.py', 'ies_optimiser/py.typed', 'ies_optimiser/data/*.schema.json', 'ies_optimiser/_bin/ies-optimiser-thermo',
                  'ies_optimiser/_bin/ies-optimiser-thermo.exe', '*.dist-info/METADATA', '*.dist-info/WHEEL', '*.dist-info/RECORD',
                  '*.dist-info/entry_points.txt', '*.dist-info/licenses/LICENSE']
 WHEEL_REQUIRED = ['ies_optimiser/__init__.py', 'ies_optimiser/__main__.py', 'ies_optimiser/api.py', 'ies_optimiser/cli.py', 'ies_optimiser/py.typed',
-                  'ies_optimiser/data/ies-optimiser-input-1.schema.json', 'ies_optimiser/data/ies-optimiser-result-1.schema.json']
+                  'ies_optimiser/data/ies-optimiser-input-1.schema.json', 'ies_optimiser/data/ies-optimiser-result-2.schema.json']
 DEPENDENCIES = ('numpy', 'ortools', 'pydantic')
 
 

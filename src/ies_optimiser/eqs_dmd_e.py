@@ -14,11 +14,12 @@ def define(glop, s, opts, stat, cfg):
 
     # Hourly demand first: it bounds the shortfall. Unmet demand offsets process
     # consumption on this balance, so without the bound a shortfall larger than
-    # demand is a fictitious source of electricity.
+    # demand is a fictitious source of electricity. The optional hourly coverage
+    # floor tightens these variable bounds without adding rows or variables.
 
     dm = u.dm_h(dmd['profile'], dmd['total'], 'demand.e', hours=cfg.hours, base=cfg.profile_base)
 
-    bounds = u.shortfall_bounds(dm, dmd['l_ns'], 'demand.e')
+    bounds = u.shortfall_bounds(dm, dmd['l_ns'], 'demand.e', floor=opts.get('hourly-coverage-floor'))
 
     dmd['output_ns'] = []
 

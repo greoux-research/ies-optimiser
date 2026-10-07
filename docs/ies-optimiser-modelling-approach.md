@@ -364,3 +364,26 @@ Shadow prices provide valuable insights:
 By making the dual problem explicit, IES Optimiser not only identifies an optimal investment mix and dispatch schedule but also highlights the marginal values of resources and constraints. This supports deeper techno-economic interpretation and broadens the range of questions the model can help address.
 
 A linear problem can have many optimal solutions — a whole face of equally cheap ones. Where it does, the solver returns one vertex of that face, and a different build of the solver may return another. Total cost, and every constraint, are the same at all of them; hourly dispatch, surplus, and sometimes the split between equally priced technologies are not. This happens readily: units with zero variable cost can overproduce at no cost, and storage can be cycled in several equivalent ways. Positive variable costs alone do not remove it, and IES Optimiser does not add artificial tie-breaking costs. Hourly results should be read with this in mind, and two results compared on their objective, capacities and balances before their dispatch.
+
+
+#### Hourly electricity coverage floor
+
+The optional run option `hourly-coverage-floor` requires, for every hour $h$,
+
+$$
+\mathrm{unmet}_h \le (1-f_h) \mathrm{demand}_h, \qquad 0 \le f_h \le 1.
+$$
+
+It covers final electricity demand only. The existing shortfall variable's
+upper bound becomes `min(l_ns[1], (1 - f[h]) * demand[h])`, with its lower bound
+unchanged. This is bound tightening, not a new constraint row; no variables or
+objective terms are added. The annual `non-served-power-constraint` and `l_ns`
+coexist with the floor, and all must be satisfied. Floor values are used as given,
+not rescaled as profiles are. Omitting it preserves the previous problem exactly.
+
+Where the floor sets the unmet-demand bound, the demand marginal value adds
+`(1 - f[h]) * reduced_cost` to the balance-row dual, because that is the bound's
+slope with respect to demand. At a tie with `l_ns[1]`, the strict comparison
+attributes the bound to `l_ns`; fixed variables and zero demand retain the
+existing subgradient interpretation. Commodity demand marginal values use the
+existing rule, although their solutions may change through system coupling.

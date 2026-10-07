@@ -216,7 +216,7 @@ def check(checks, name, residual, tolerance):
     }
 
 
-def demand_marginal(rows, ns_vars, dm, l_ns):
+def demand_marginal(rows, ns_vars, dm, l_ns, floor=None):
 
     """
     Dual-based marginal value of demand, hour by hour.
@@ -226,6 +226,10 @@ def demand_marginal(rows, ns_vars, dm, l_ns):
     balance row and that bound. The row dual (demand_match) holds every bound
     fixed; adding the shortfall variable's reduced cost -- the dual of the
     demand-set bound -- gives the dual value of demand in both places.
+
+    With an electricity floor, the demand-set bound has slope (1 - floor[i]),
+    which multiplies its reduced-cost contribution. Ties with l_ns[1] retain
+    the strict comparison; fixed variables and zero demand are subgradients.
 
     What this is, precisely: the objective is a convex, piecewise-linear
     function of an hour's demand (the carbon budget and reliability cap held
@@ -247,13 +251,18 @@ def demand_marginal(rows, ns_vars, dm, l_ns):
 
         value = rows[i].dual_value()
 
-        if dm[i] < high:
-
-            reduced = ns_vars[i].reduced_cost()
-
-            if reduced < 0:
-
-                value += reduced
+        if floor is None:
+            if dm[i] < high:
+                reduced = ns_vars[i].reduced_cost()
+                if reduced < 0:
+                    value += reduced
+        else:
+            f = floor[i]
+            cap = (1.0 - f) * dm[i]
+            if cap < high:
+                reduced = ns_vars[i].reduced_cost()
+                if reduced < 0:
+                    value += (1.0 - f) * reduced
 
         out.append(value)
 
@@ -499,7 +508,8 @@ def demand_props(s, opts, emis_con, nspo_con, objective, cfg):
 
     dmd['shadow_prices']['demand_match'] = [dmd['__meet_dmnd'][i].dual_value() for i in range(H)]
 
-    dmd['shadow_prices']['demand_marginal'] = demand_marginal(dmd['__meet_dmnd'], dmd['output_ns'], dm_e, dmd['l_ns'])
+    dmd['shadow_prices']['demand_marginal'] = demand_marginal(dmd['__meet_dmnd'], dmd['output_ns'], dm_e, dmd['l_ns'],
+                                                            floor=opts.get('hourly-coverage-floor'))
 
     dmd['output_ns'] = ns_e.tolist()
 
@@ -528,6 +538,11 @@ def demand_props(s, opts, emis_con, nspo_con, objective, cfg):
         dmd['shadow_prices']['reliability_cap_detail'] = _detail
 
         check(checks, 'reliability_cap', max(0.0, e_ns_sum - cap), feas_tol(cap))
+
+    if 'hourly-coverage-floor' in opts:
+        floor = np.asarray(opts['hourly-coverage-floor'], dtype=float)
+        residual = max(0.0, float(np.max(ns_e - (1.0 - floor) * dm_e)))
+        check(checks, 'coverage_floor', residual, feas_tol(short_scale))
 
     penalties = 0.0
 

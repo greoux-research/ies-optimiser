@@ -213,10 +213,10 @@ else:
 
 #### Results
 
-- **Two shapes,** described by the result schema (`ies-optimiser schema result`; shipped as `ies_optimiser/data/ies-optimiser-result-1.schema.json`):
+- **Two shapes,** described by the result schema (`ies-optimiser schema result`; shipped as `ies_optimiser/data/ies-optimiser-result-2.schema.json`):
   - **Optimal** (`solver.stat_succ` 1): inputs, hourly and annual results, `system` totals and checks.
   - **Unsuccessful** (`stat_succ` 0): inputs, solver status and provenance only. No result field and no placeholder is present, so an unavailable output cannot be read as a number.
-- **Version and format:** every result records `provenance.result_format_version` (1) and `provenance.input_format`.
+- **Version and format:** every result records `provenance.result_format_version` (2) and `provenance.input_format`.
 - **Sentinels kept for compatibility:**
   - `kpis` values are -1 where not applicable.
   - `carbon_cap` / `reliability_cap` are -1 when that option was not given.
@@ -240,10 +240,133 @@ Three conventions matter when reading results:
 
 #### Schemas
 
-The input and result schemas are shipped in the package (`ies_optimiser/data/ies-optimiser-input-1.schema.json`, `ies_optimiser/data/ies-optimiser-result-1.schema.json`; `ies_optimiser.schemas.path(kind)` gives their location, `ies-optimiser schema input|result` prints them). They are generated from the models; do not edit them. In a checkout, regenerate them with:
+The input and result schemas are shipped in the package (`ies_optimiser/data/ies-optimiser-input-1.schema.json`, `ies_optimiser/data/ies-optimiser-result-2.schema.json`; `ies_optimiser.schemas.path(kind)` gives their location, `ies-optimiser schema input|result` prints them). They are generated from the models; do not edit them. In a checkout, regenerate them with:
 
 ```bash
 python tools/generate_schemas.py            # --check only compares
 ```
 
 A test fails if they differ from the models. They describe **structure only**: identifiers, references, topology, profile contents and lengths, hourly bounds and thermodynamics are checked by IES Optimiser (`ies-optimiser validate`).
+
+---
+
+#### Hourly electricity coverage floor
+
+`hourly-coverage-floor` is an optional **run option**, not a case field. It sets
+`unmet[h] <= (1 - floor[h]) * demand[h]` for each hour of final electricity demand
+(`demand.e`), excluding Power-to-X consumption and commodity demands. It tightens
+an existing variable bound; it adds no variables, rows or objective terms. The
+annual unmet-energy cap and `l_ns` still apply, so the tightest bound controls.
+Without this option, the formulation and all numerical results are unchanged.
+
+Python accepts an `int` or `float` (excluding bool), a non-empty `str` CSV path,
+or a `list` of numbers. A **string is always a path**: `"0.9"` does not mean a
+scalar. Explicit `None`, bool, tuple, NumPy array, path-like object, nested list
+and non-number list elements are refused (`value.type`). Omit the option to
+leave it absent. Scalars apply to every hour's own demand; lists and CSVs must
+have exactly `RunConfig.hours` values (8,760 by default). All values must be
+finite and in `[0, 1]`, and are used as given, never normalised or rescaled.
+All-zero floors and zero-demand hours, including zero total demand, are valid.
+
+On the command line, classification is in this order: a value accepted by
+`float` is a scalar; otherwise a `.csv` suffix (case insensitive), `/` or `\`
+means a path; otherwise it is a comma-separated list. Thus `a,b.csv` is a path,
+and a file name without `.csv` needs a separator, such as `./floors`.
+Malformed list elements name their zero-based position and give `value.type`.
+
+CSVs have one value per row and no header. Relative paths resolve against the
+case file's directory (`source` for an in-memory case) or explicit
+`--profile-base` / `RunConfig.profile_base`, never the working directory.
+An in-memory case without either base needs an absolute path. Resolution runs
+**once per operation** (`validate` or `solve`): the file is read once as bytes,
+and those same bytes are hashed and parsed. One effective series is shared by
+semantic validation, bounds, accounting checks and provenance.
+
+| Diagnostic | Layer and context |
+|---|---|
+| `option.floor_range` | options for scalar/inline values; semantics for CSV values; hour set for an element/row |
+| `option.floor_length` | semantics; wrong list/CSV length; no hour |
+| `shortfall.exceeds_floor` | semantics; `l_ns[0]` exceeds the floor's permitted unmet demand; field `l_ns`, case path and hour set; checked after `shortfall.exceeds_demand` |
+| `profile.unresolvable`, `profile.not_found`, `profile.unreadable`, `profile.dimensions` | profiles; floor path resolution, reading or column count; field `hourly-coverage-floor`, no case path or hour |
+
+The installed package exposes the accepted forms and ranges directly:
+
+```python
+from ies_optimiser.models import SolveOptions
+schema = SolveOptions.model_json_schema(by_alias=True, mode="validation")
+print(schema['properties']['hourly-coverage-floor'])
+```
+
+The field's schema admits number, CSV path string and numeric array, with no
+`null` and no null default. `ies-optimiser --help` lists all run options;
+`ies-optimiser validate CASE.json hourly-coverage-floor=... --json` exposes
+structured diagnostics, with `code`, `field`, `path` and `hour` (null when
+inapplicable), in exactly one stdout JSON document.
+
+This public-API example uses scalar and inline forms without an additional file.
+It validates and solves with the same options and configuration, and requires
+both outcome indicators before reading numerical results.
+
+<!-- tested -->
+```python
+import ies_optimiser
+
+case = 'examples/electricity-storage/case.json'
+config = ies_optimiser.RunConfig()
+for floor in (0.9, [0.9] * config.hours):
+    options = {'hourly-coverage-floor': floor}
+    report = ies_optimiser.validate(case, options=options, config=config)
+    if not report.valid:
+        for d in report.diagnostics:
+            print(d.code, d.field, d.hour)
+        raise SystemExit(1)
+    result = ies_optimiser.solve(case, options=options, config=config)
+    if not result.optimal:
+        print('unsuccessful solve:', result.status)
+        raise SystemExit(1)
+    if not result.accounting_ok:
+        print('failed accounting checks')
+        raise SystemExit(1)
+    print(result.document['system']['cost'])
+    origin = result.document['provenance']['hourly_coverage_floor']
+    output = ies_optimiser.output_path(case, options, floor_sha256=origin['values_sha256'])
+    ies_optimiser.write_result(result, output)
+```
+
+`output_path(input_path, options=None, floor_sha256=None)` takes the effective
+series SHA-256 from result provenance for a list or CSV floor; without it those
+forms raise `ValueError`. It does not read a CSV. A scalar uses
+`.hourly-coverage-floor_0.9`; equivalent list and CSV values use the same first
+12 hex digest digits. The digest hashes float64 little-endian values, with
+signed zero normalised.
+
+**Result format 2** widens `provenance.options` from numbers only to numbers or
+numeric lists. The floor is recorded there as the full effective list for every
+supplied form. `provenance.hourly_coverage_floor` records `form` (scalar/list/csv),
+`declared` (scalar or declared path; null for a list), `resolved` (CSV only),
+`file_sha256` (the CSV bytes parsed only), and `values_sha256` (every form).
+The origin block and `system.checks.coverage_floor` are absent without the option;
+that check participates in `accounting_ok`. The result schema is
+`ies-optimiser-result-2.schema.json`. Version-1 results remain valid historical
+documents; no converter is added.
+
+**Replay:** `options=result.document['provenance']['options']` reproduces the floor
+exactly without its original CSV. Reproducing the whole optimisation also needs
+the same case and other referenced profiles, the same configuration (`hours`,
+`storage_closes_the_year`, profile base), and a compatible numerical environment;
+equally optimal dispatches can differ across solver builds. Replaying a scalar
+through its effective list gives the same constraint but a digest-style output
+name, rather than `_0.9`.
+
+**Outcomes:** Invalid inputs, an infeasible optimisation and failed accounting
+checks are different outcomes; report them distinctly. Do not silently relax
+coverage targets, change demand or loosen numerical tolerances to obtain a
+successful result. For automation, prefer the Python API: refused input raises
+a structured `InputError` (or `ThermoError`); an unsuccessful solve returns a
+`SolveResult` with `optimal=False` and a status. On the command line, exit status
+1 covers both refused input (nothing written) and a non-optimal solve (result
+written). A result file's existence is not enough: a previous or concurrent run
+may have written it. Isolate each invocation's output in a fresh directory, or
+copy its case into a separate directory so names cannot collide. A timestamp
+such as `provenance.run_utc` supports attribution but cannot uniquely identify an
+invocation because of timestamp precision and concurrency.

@@ -4,6 +4,8 @@
 
 
 import subprocess
+import hashlib
+import io
 
 import numpy as np
 
@@ -16,7 +18,7 @@ import os
 
 
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ies_optimiser import _install
 from ies_optimiser.errors import InputError
@@ -245,7 +247,7 @@ def fail(who, message, field=None, hour=None, *, code='input.invalid', layer='se
     raise InputError(message, entity=who, field=field, hour=hour, code=code, layer=layer, path=path)
 
 
-def parse_options(args: Sequence[str]) -> Dict[str, float]:
+def parse_options(args: Sequence[str]) -> Dict[str, Union[float, str, List[float]]]:
 
     """
     Parse 'name=value' command-line options, refusing anything that is not one.
@@ -254,7 +256,8 @@ def parse_options(args: Sequence[str]) -> Dict[str, float]:
     constraint silently removed itself from the model while still appearing in
     the output file name and provenance. A bare 'name value' pair was dropped
     without trace. Every argument must now be a recognised name, given once,
-    with a numeric value; its admissible range is checked by
+    with a numeric value (or a CSV path / comma-separated list for the floor).
+    Its admissible range is checked by
     formats.validate_options (models.SolveOptions). Order is kept: it sets the
     result file name.
     """
@@ -267,7 +270,7 @@ def parse_options(args: Sequence[str]) -> Dict[str, float]:
     def refuse(message, code, field=None):
         fail('command line', message, field=field, code=code, layer='options')
 
-    opts = {}
+    opts: Dict[str, Any] = {}
 
     for arg in args:
 
@@ -292,16 +295,31 @@ def parse_options(args: Sequence[str]) -> Dict[str, float]:
 
         except ValueError:
 
-            refuse('value of \'' + name + '\' is not a number: \'' + text + '\'', 'value.type', name)
+            if name != 'hourly-coverage-floor':
+                refuse('value of \'' + name + '\' is not a number: \'' + text + '\'', 'value.type', name)
+            elif text.lower().endswith('.csv') or '/' in text or '\\' in text:
+                opts[name] = text
+            else:
+                values = []
+                for i, part in enumerate(text.split(',')):
+                    try:
+                        values.append(float(part))
+                    except ValueError:
+                        refuse('value of ' + repr(name) + ' has a non-number or empty element at position '
+                               + str(i), 'value.type', name)
+                opts[name] = values
 
     return validate_options(opts)
 
 
-def output_path(json_file: Any, opts: Mapping[str, float]) -> str:
+def output_path(json_file: Any, opts: Mapping[str, Any], floor_sha256: Optional[str] = None) -> str:
 
     """
     The result path: beside the input, '.json' replaced by '.ies-optimiser.json', with
     one '.name_value' segment per option in the order given.
+
+    List and CSV floors require floor_sha256 from the resolved series; no file
+    is read here. Scalar floors use str(float(value)).
 
     Only the file name's own suffix is replaced. Replacing '.json' anywhere in
     the path rewrote directory names that happened to contain it.
@@ -312,9 +330,75 @@ def output_path(json_file: Any, opts: Mapping[str, float]) -> str:
 
     stem = name[:-len('.json')] if name.endswith('.json') else name
 
-    stem += '.ies-optimiser' + ''.join('.' + str(k) + '_' + str(v) for k, v in opts.items())
+    stem += '.ies-optimiser'
+    for k, v in opts.items():
+        if k == 'hourly-coverage-floor':
+            if isinstance(v, (int, float)):
+                suffix = str(float(v))
+            elif floor_sha256 is None:
+                raise ValueError('a list or CSV hourly-coverage-floor requires floor_sha256')
+            else:
+                suffix = floor_sha256[:12]
+        else:
+            suffix = str(v)
+        stem += '.' + str(k) + '_' + suffix
 
     return os.path.join(folder, stem + '.json')
+
+
+def floor_digest(series: Sequence[float]) -> str:
+    """SHA-256 of float64 little-endian effective values, with signed zero normalised."""
+    values = np.asarray(series, dtype=np.float64) + 0.0
+    return hashlib.sha256(values.astype('<f8').tobytes()).hexdigest()
+
+
+def resolve_coverage_floor(value: Any, cfg: RunConfig) -> Tuple[Optional[List[float]], Optional[Dict[str, Any]]]:
+    """Resolve a validated floor once; hash and parse the same CSV bytes."""
+    if value is None:
+        return None, None
+    origin: Dict[str, Any] = {'declared': None, 'resolved': None, 'file_sha256': None}
+    if isinstance(value, str):
+        origin.update(form='csv', declared=value)
+        try:
+            resolved = resolve_profile(value, cfg.profile_base, 'hourly-coverage-floor',
+                                       field='hourly-coverage-floor')
+        except InputError as e:
+            d = e.diagnostics[0]
+            fail('hourly-coverage-floor', d.message + '; basis: ' + str(cfg.profile_base)
+                 + ' (set --profile-base / RunConfig.profile_base)', field='hourly-coverage-floor',
+                 code=d.code, layer='profiles')
+        origin['resolved'] = resolved
+        try:
+            with open(resolved, 'rb') as f:
+                raw = f.read()
+            origin['file_sha256'] = hashlib.sha256(raw).hexdigest()
+            table = np.loadtxt(io.BytesIO(raw), dtype=float, ndmin=2)
+        except (OSError, ValueError) as e:
+            fail('hourly-coverage-floor', 'cannot read ' + repr(value) + ' resolved to ' + repr(resolved)
+                 + ' using basis ' + str(cfg.profile_base) + ' (--profile-base / RunConfig.profile_base): '
+                 + str(e), field='hourly-coverage-floor', code='profile.unreadable', layer='profiles')
+        if table.shape[1] != 1:
+            fail('hourly-coverage-floor', 'CSV must have exactly one column: ' + repr(value)
+                 + ' resolved to ' + repr(resolved) + ' using basis ' + str(cfg.profile_base)
+                 + ' (--profile-base / RunConfig.profile_base)', field='hourly-coverage-floor',
+                 code='profile.dimensions', layer='profiles')
+        series = table[:, 0].tolist()
+    elif isinstance(value, list):
+        origin['form'] = 'list'
+        series = list(value)
+    else:
+        origin.update(form='scalar', declared=float(value))
+        series = [float(value)] * cfg.hours
+    if len(series) != cfg.hours:
+        fail('hourly-coverage-floor', 'expected ' + str(cfg.hours) + ' values, got ' + str(len(series)),
+             field='hourly-coverage-floor', code='option.floor_length')
+    for i, v in enumerate(series):
+        if origin['form'] == 'csv' and (not math.isfinite(v) or not 0 <= v <= 1):
+            fail('hourly-coverage-floor', 'floor must be finite and in [0, 1]', field='hourly-coverage-floor',
+                 hour=i, code='option.floor_range')
+    series = [float(v) for v in series]
+    origin['values_sha256'] = floor_digest(series)
+    return series, origin
 
 
 def file_digest(path):
@@ -449,8 +533,8 @@ def source_state(thermo_bin=Thermo_bin):
     }
 
 
-def provenance(json_file: Optional[str], opts: Mapping[str, float], s: Dict[str, Any], cfg: RunConfig = RunConfig(),
-               profile_mode: Optional[str] = None) -> Dict[str, Any]:
+def provenance(json_file: Optional[str], opts: Mapping[str, Any], s: Dict[str, Any], cfg: RunConfig = RunConfig(),
+               profile_mode: Optional[str] = None, floor_origin: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
 
     """
     Identify what produced a result: the code, the inputs, the options and the
@@ -542,6 +626,9 @@ def provenance(json_file: Optional[str], opts: Mapping[str, float], s: Dict[str,
         'run_utc': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
     }
 
+    if floor_origin is not None:
+        stamp['hourly_coverage_floor'] = dict(floor_origin)
+
     stamp.update(source_state(cfg.thermo_bin))
 
     return stamp
@@ -624,10 +711,11 @@ def dm_h(profile, total, who='dm_h', hours=HOURS_PER_YEAR, base=None, field='pro
     return output
 
 
-def shortfall_bounds(dm, l_ns, who, path=None):
+def shortfall_bounds(dm, l_ns, who, path=None, floor=None):
 
     """
     Hourly bounds on unmet demand: l_ns[0] <= unmet[i] <= min(l_ns[1], dm[i]).
+    With a floor, dm[i] in the upper bound becomes (1 - floor[i]) * dm[i].
 
     Unmet demand cannot exceed demand. On the electricity balance an unbounded
     shortfall offsets process consumption, so shedding demand that never
@@ -649,7 +737,15 @@ def shortfall_bounds(dm, l_ns, who, path=None):
                  + ' (' + str(d) + '): unmet demand cannot exceed demand', field='l_ns', hour=i,
                  code='shortfall.exceeds_demand', path=path)
 
-        bounds.append((low, max(low, min(high, d))))
+        if floor is None:
+            bounds.append((low, max(low, min(high, d))))
+        else:
+            cap = (1.0 - floor[i]) * d
+            if low > cap + Balance_rtol * max(1.0, abs(d)):
+                fail(who, 'l_ns lower bound forces more unmet demand in hour ' + str(i)
+                     + ' than the coverage floor allows', field='l_ns', hour=i,
+                     code='shortfall.exceeds_floor', path=path)
+            bounds.append((low, max(low, min(high, cap))))
 
     return bounds
 

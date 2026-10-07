@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/greoux-research/ies-optimiser/schemas/ies-optimiser-result-1.schema.json",
-  "title": "IES Optimiser result, format 1",
+  "$id": "https://github.com/greoux-research/ies-optimiser/schemas/ies-optimiser-result-2.schema.json",
+  "title": "IES Optimiser result, format 2",
   "description": "An IES Optimiser result: OptimalResult when solver.stat_succ is 1 (check system.accounting_ok), UnsuccessfulResult when it is 0 (inputs, status and provenance only). This schema describes structure only. Unique identifiers, references between objects, thermal topology, profile files and their contents and lengths, hourly shortfall bounds and thermodynamic admissibility are checked by IES Optimiser (ies-optimiser validate CASE.json). A valid case may still define an infeasible optimisation problem.",
   "x-ies-optimiser-format": {
     "kind": "result",
-    "version": 1
+    "version": 2
   },
   "$defs": {
     "Accounts": {
@@ -1230,6 +1230,75 @@
       "title": "GeneratorResult",
       "type": "object"
     },
+    "HourlyCoverageFloor": {
+      "additionalProperties": false,
+      "description": "Origin of the effective hourly electricity coverage floor.",
+      "properties": {
+        "form": {
+          "description": "Form supplied by the caller.",
+          "enum": [
+            "scalar",
+            "list",
+            "csv"
+          ],
+          "title": "Form",
+          "type": "string"
+        },
+        "declared": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Supplied scalar or CSV path; null for a list.",
+          "title": "Declared"
+        },
+        "resolved": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Resolved CSV path; null for scalar or list.",
+          "title": "Resolved"
+        },
+        "file_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "SHA-256 of the CSV bytes parsed; null without a CSV.",
+          "title": "File sha256"
+        },
+        "values_sha256": {
+          "description": "SHA-256 of effective float64 little-endian values, with signed zero normalised; first twelve digits name list and CSV outputs.",
+          "title": "Values sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "form",
+        "declared",
+        "resolved",
+        "file_sha256",
+        "values_sha256"
+      ],
+      "title": "HourlyCoverageFloor",
+      "type": "object"
+    },
     "Installation": {
       "additionalProperties": false,
       "properties": {
@@ -1964,7 +2033,7 @@
           "type": "string"
         },
         "result_format_version": {
-          "const": 1,
+          "const": 2,
           "title": "Result format version",
           "type": "integer"
         },
@@ -2048,10 +2117,32 @@
         },
         "options": {
           "additionalProperties": {
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              }
+            ]
           },
           "title": "Options",
           "type": "object"
+        },
+        "hourly_coverage_floor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HourlyCoverageFloor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Present with hourly-coverage-floor: declared origin and effective-series digest. The effective series in options reproduces the floor without the original CSV.",
+          "title": "Hourly coverage floor"
         },
         "hours": {
           "title": "Hours",

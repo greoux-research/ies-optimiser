@@ -44,7 +44,7 @@ if result.optimal and result.accounting_ok:
     print(result.document['system']['cost'])               # USD per year
 ```
 
-`ies-optimiser --help` lists the commands; `ies-optimiser schema input` prints the JSON Schema of an input.
+`ies-optimiser --help` lists the commands and all run options; `ies-optimiser schema input` prints the JSON Schema of an input.
 
 ## Licence and data
 
@@ -63,3 +63,14 @@ Every result carries a `provenance` block recording the code, the digests of the
 ## How to cite IES Optimiser
 
 Gréoux Research (2024). IES Optimiser: a linear optimiser-based integrated energy system modelling environment. https://github.com/greoux-research/ies-optimiser
+
+
+To require at least 90% of each hour's final electricity demand to be served:
+
+```bash
+ies-optimiser examples/electricity-storage/case.json hourly-coverage-floor=0.9
+```
+
+The floor also accepts a CSV path or comma-separated list (values in `[0, 1]`
+used as given). See the [API guide](docs/ies-optimiser-api.md#hourly-electricity-coverage-floor)
+for path resolution, replay and structured diagnostics.
