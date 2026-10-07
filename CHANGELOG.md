@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026.10.0 (unreleased)
+## 2026.10.0 — 2026-10-07
 
 - Add the optional `hourly-coverage-floor` run option: scalar, CSV or inline list
   bounds the unmet share of final electricity demand in every hour, without
