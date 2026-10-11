@@ -1894,3 +1894,33 @@ setting, input profile convention or result calculation was changed.
 The eight annual reference configurations were not rerun for this workflow
 change. These checks establish the new interfaces and short-run bundle path,
 not numerical equivalence of a newly solved annual case to stored references.
+
+## 2026-10-11 — 2026.10.1 published release
+
+Annotated tag `v2026.10.1` identifies commit
+`7da638d344d160ce0660e21c25d34dcebe9cef41`.
+[Release workflow run 38162830569](https://github.com/greoux-research/ies-optimiser/actions/runs/38162830569)
+completed successfully: **45 of 45 jobs passed**. The run built and tested the
+four platform wheels and source distribution, published the tested artifacts
+to TestPyPI and then PyPI through Trusted Publishing, and verified installations
+from both indexes on the supported platforms.
+
+Published package: [PyPI 2026.10.1](https://pypi.org/project/ies-optimiser/2026.10.1/),
+[TestPyPI 2026.10.1](https://test.pypi.org/project/ies-optimiser/2026.10.1/).
+The five filenames, byte counts and SHA-256 digests obtained from both indexes
+match exactly. The workflow checked its `release-dist/SHA256SUMS` manifest before
+each upload; that manifest was not independently downloaded for this record.
+
+| Published artifact | Bytes | SHA-256 |
+|---|---:|---|
+| `ies_optimiser-2026.10.1-py3-none-macosx_10_15_x86_64.whl` | 123150 | `0bee60217d79ba078b0a724b706329ec70a365e6b86f24b99047e9f897a20f7b` |
+| `ies_optimiser-2026.10.1-py3-none-macosx_11_0_arm64.whl` | 123328 | `3e17e0322cc27b1d65d30d498853fdc7400eba249122a4db376d492a9f3d4b2d` |
+| `ies_optimiser-2026.10.1-py3-none-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl` | 122005 | `fa3cd1466f91eff4bf26fbe5e1096b44b6a3dc0428027bea21db08f05ca9059e` |
+| `ies_optimiser-2026.10.1-py3-none-win_amd64.whl` | 274947 | `9cc248d28bc5a52b2927e0710ad249c4d8b5f6e8aec3a68afe652343ea778f88` |
+| `ies_optimiser-2026.10.1.tar.gz` | 98612 | `f370cb996c91ee791043d47af2ac0057b7a712aa8f986e082e6daee266895dca` |
+
+GitHub release: [IES Optimiser 2026.10.1](https://github.com/greoux-research/ies-optimiser/releases/tag/v2026.10.1).
+This release adds the packaged modelling guide, options schema and verifiable
+result bundles. The development checks above cover the new interfaces and short
+solves; the release workflow establishes installation and artifact verification
+across supported platforms. The annual reference configurations were not rerun.
