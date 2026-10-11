@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026.10.1 — unreleased
+## 2026.10.1 — released
 
 - Add a modelling guide available from an installed package with
   `ies-optimiser guide`.
