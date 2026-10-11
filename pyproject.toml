@@ -9,7 +9,7 @@ build-backend = "scikit_build_core.build"
 name = "ies-optimiser"
 # The single authoritative version (calendar versioning: year.month.patch).
 # Installed code reads it from the distribution metadata (ies_optimiser.__version__).
-version = "2026.10.0"
+version = "2026.10.1"
 description = "IES Optimiser: a linear optimiser-based integrated energy system modelling environment"
 readme = "README.md"
 license = "MIT"
@@ -90,6 +90,7 @@ sdist.include = [
     "/LICENSE",
     "/src/ies_optimiser/*.py",
     "/src/ies_optimiser/py.typed",
+    "/src/ies_optimiser/assistant-guide.md",
     "/src/ies_optimiser/data/*.schema.json",
     "/thermo/*.cpp",
     "/thermo/*.h",
@@ -162,7 +163,7 @@ testpaths = ["tests"]
 # 3.12). Compatibility with 3.11 itself is tested by running on 3.11.
 files = [
     "src/ies_optimiser/__init__.py", "src/ies_optimiser/__main__.py", "src/ies_optimiser/_install.py", "src/ies_optimiser/api.py",
-    "src/ies_optimiser/cli.py", "src/ies_optimiser/errors.py", "src/ies_optimiser/formats.py", "src/ies_optimiser/models.py",
+    "src/ies_optimiser/cli.py", "src/ies_optimiser/bundle.py", "src/ies_optimiser/errors.py", "src/ies_optimiser/formats.py", "src/ies_optimiser/models.py",
     "src/ies_optimiser/results.py", "src/ies_optimiser/schemas.py",
 ]
 mypy_path = "src"

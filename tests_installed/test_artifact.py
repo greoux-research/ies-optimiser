@@ -68,7 +68,8 @@ def test_version_and_metadata_agree():
 
 def test_resources_are_installed():
     assert os.path.isfile(os.path.join(PACKAGE, 'py.typed'))
-    for kind in ('input', 'result'):
+    assert os.path.isfile(os.path.join(PACKAGE, 'assistant-guide.md'))
+    for kind in ('input', 'result', 'options'):
         path = schemas.path(kind)
         assert os.path.dirname(path) == os.path.join(PACKAGE, 'data')
         with open(path, encoding='utf-8') as f:

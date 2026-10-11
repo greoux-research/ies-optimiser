@@ -1,5 +1,17 @@
 # AGENTS.md — guide for coding assistants working on IES Optimiser
 
+## Modelling a user's study
+
+When asked to use IES Optimiser, read `src/ies_optimiser/assistant-guide.md`
+in a checkout, or run `ies-optimiser guide` with an installed package. Work on the
+user's case in their workspace. Inspect `ies-optimiser schema input` and
+`ies-optimiser schema options`, validate with `--json`, and use
+`ies-optimiser run CASE.json --output NEW_DIRECTORY --json` when a portable
+result is needed. Check it with `ies-optimiser verify NEW_DIRECTORY --json`.
+Read the run outcome and accounting checks before reporting numbers. Do not
+invent source data or change a failed study's assumptions without the user's
+direction. The rest of this file governs changes to the package's own code.
+
 IES Optimiser is a linear energy-system optimiser (OR-Tools GLOP, 8760 hourly steps) with a small C++ thermodynamics executable. Read `docs/ies-optimiser-modelling-approach.md` before touching equations, and `docs/ies-optimiser-api.md` before touching inputs, validation or results.
 
 ## Layout and public API

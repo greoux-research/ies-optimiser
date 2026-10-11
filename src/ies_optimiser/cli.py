@@ -6,20 +6,25 @@
 
     ies-optimiser INPUT.json [name=value ...] [--profile-base DIR]
     ies-optimiser validate INPUT.json [name=value ...] [--profile-base DIR] [--json]
-    ies-optimiser schema input|result
+    ies-optimiser schema input|result|options
+    ies-optimiser guide
+    ies-optimiser run INPUT.json --output NEW_DIRECTORY [name=value ...] [--profile-base DIR] [--json]
+    ies-optimiser verify DIRECTORY [--json]
     ies-optimiser --help | --version
 
 'ies-optimiser' is the console command installed with the package; 'python -m ies_optimiser'
 and, in a source checkout, 'python ies_optimiser.py' run the same command line.
 
-The first form solves, as it always has. 'validate' checks a case completely
+The first form solves, as it always has. 'run' solves once into a new bundle,
+'verify' checks a bundle without solving, and 'guide' prints the installed
+modelling guide. 'validate' checks a case completely
 -- structure, identifiers, references, topology, profiles (resolved and read),
 hourly shortfall bounds and, for units that supply heat, the thermodynamics
 (it runs the packaged executable, ies_optimiser/_bin/ies-optimiser-thermo) -- without building or solving the problem, and
-writes no file. 'schema' prints the JSON Schema of the canonical input or of a
-result; it needs no case and no thermodynamics executable. A first argument
-that is exactly 'validate' or 'schema' selects the command; anything else is
-the solve form's input file.
+writes no file. 'schema' prints the JSON Schema of the canonical input, result
+or run options; it needs no case and no thermodynamics executable. A first
+argument that is exactly 'validate', 'schema', 'guide', 'run' or 'verify' selects
+that command; anything else is the solve form's input file.
 
 Relative profile paths in INPUT.json resolve against INPUT.json's own
 directory. --profile-base DIR resolves them against DIR instead (a relative DIR
@@ -45,7 +50,7 @@ Exit status:
     1  input, options, profiles, configuration or thermodynamics refused
        (nothing written), or the solve did not reach an optimal solution
        (result written, status inside); validate: invalid
-    3  solve: optimal, but an accounting check failed (result written)
+    3  solve/run: optimal, but an accounting check failed (result written)
 """
 
 import json
@@ -60,7 +65,7 @@ from ies_optimiser.errors import IesOptimiserError, InputError
 log = logging.getLogger('ies_optimiser')
 
 # Recognised flags: name -> whether it takes a value.
-FLAGS = {'--profile-base': True, '--json': False}
+FLAGS = {'--profile-base': True, '--json': False, '--output': True}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -72,7 +77,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         log.error('Examples of a correct command line: \'ies-optimiser input.json\', '
                   '\'ies-optimiser validate input.json --json\', \'ies-optimiser schema input\' (\'ies-optimiser --help\' for more)')
         return 1
-    if args[0] in ('-h', '--help') or (args[0] in ('validate', 'schema') and args[1:2] in (['-h'], ['--help'])):
+    if args[0] in ('-h', '--help') or (args[0] in ('validate', 'schema', 'guide', 'run', 'verify')
+                                      and args[1:2] in (['-h'], ['--help'])):
         sys.stdout.write(__doc__ or '')
         return 0
     if args[0] == '--version':
@@ -81,6 +87,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
     if args[0] == 'schema':
         return schema(args[1:])
+    if args[0] == 'guide':
+        return guide(args[1:])
+    if args[0] == 'run':
+        return run_bundle(args[1:])
+    if args[0] == 'verify':
+        return verify_bundle(args[1:])
     if args[0] == 'validate':
         return validate(args[1:])
     return solve(args)
@@ -157,11 +169,87 @@ def _report_usage(error: InputError, json_file: Optional[str], as_json: bool) ->
 
 
 def schema(args: List[str]) -> int:
-    """schema input|result: print the JSON Schema on stdout."""
+    """Print a shipped JSON Schema on stdout."""
     if len(args) != 1 or args[0] not in schemas.FILES:
-        log.error('usage: ies-optimiser schema input|result')
+        log.error('usage: ies-optimiser schema input|result|options')
         return 1
     sys.stdout.write(schemas.generate(args[0]))
+    return 0
+
+
+def guide(args: List[str]) -> int:
+    """Print the guide belonging to this installed package."""
+    if args:
+        log.error('usage: ies-optimiser guide')
+        return 1
+    from importlib.resources import files
+    sys.stdout.write(files('ies_optimiser').joinpath('assistant-guide.md').read_text(encoding='utf-8'))
+    return 0
+
+
+def _bundle_error(error: Exception, as_json: bool, command: str) -> int:
+    from ies_optimiser.errors import Diagnostic
+    diagnostics = (error.diagnostics if isinstance(error, IesOptimiserError) else
+                   [Diagnostic(code='bundle.failed', layer='file', message=str(error))])
+    if as_json:
+        print(json.dumps({'command': command, 'outcome': 'input_invalid' if isinstance(error, IesOptimiserError)
+                          else 'bundle_error', 'diagnostics': [d.to_dict() for d in diagnostics]}, indent=2))
+    else:
+        for diagnostic in diagnostics:
+            log.error('%s [%s]', diagnostic, diagnostic.code)
+    return 1
+
+
+def run_bundle(args: List[str]) -> int:
+    """Solve once and write a verified, portable directory."""
+    from ies_optimiser import bundle
+    as_json = '--json' in args
+    try:
+        if not args or args[0].startswith('--'):
+            raise InputError('run needs an input file', entity='command line', code='command.usage',
+                             layer='configuration')
+        flags, option_args = split_flags(args[1:], allowed=('--output', '--profile-base', '--json'))
+        if '--output' not in flags:
+            raise InputError('run needs --output NEW_DIRECTORY', entity='command line', field='--output',
+                             code='command.usage', layer='configuration')
+        opts = u.parse_options(option_args)
+        profile_base = flags.get('--profile-base')
+        output = flags['--output']
+        config = u.RunConfig(profile_base=profile_base if isinstance(profile_base, str) else None)
+        assert isinstance(output, str)
+        manifest = bundle.save_bundle(args[0], output, options=opts, config=config)
+    except (IesOptimiserError, OSError, ValueError) as error:
+        return _bundle_error(error, as_json, 'run')
+    document = {'command': 'run', 'outcome': manifest['outcome'], 'status': manifest['status'],
+                'bundle': str(flags['--output']), 'diagnostics': []}
+    if as_json:
+        print(json.dumps(document, indent=2))
+    else:
+        print(str(flags['--output']) + ': ' + manifest['outcome'] + ' (' + manifest['status'] + ')')
+    return 0 if manifest['outcome'] == 'success' else 3 if manifest['outcome'] == 'accounting_failure' else 1
+
+
+def verify_bundle(args: List[str]) -> int:
+    """Check saved bundle consistency without solving."""
+    from ies_optimiser import bundle
+    as_json = '--json' in args
+    try:
+        if not args or args[0].startswith('--'):
+            raise InputError('verify needs a bundle directory', entity='command line', code='command.usage',
+                             layer='configuration')
+        flags, rest = split_flags(args[1:], allowed=('--json',))
+        if rest:
+            raise InputError('verify takes one directory', entity='command line', code='command.usage',
+                             layer='configuration')
+        manifest = bundle.read_bundle(args[0])
+    except (IesOptimiserError, OSError, ValueError) as error:
+        return _bundle_error(error, as_json, 'verify')
+    document = {'command': 'verify', 'verified': True, 'outcome': manifest['outcome'],
+                'bundle': args[0], 'diagnostics': []}
+    if as_json:
+        print(json.dumps(document, indent=2))
+    else:
+        print(args[0] + ': verified (' + manifest['outcome'] + ')')
     return 0
 
 

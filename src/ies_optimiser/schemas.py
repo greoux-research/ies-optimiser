@@ -11,7 +11,7 @@ The copies shipped in the package (ies_optimiser/data/, see path()) are written 
     python tools/generate_schemas.py
 
 and a test fails if they differ from what the current models generate. The
-command line prints the same text: ies-optimiser schema input|result.
+command line prints the same text: ies-optimiser schema input|result|options.
 
 A schema describes structure only. Identifiers, references, topology, profile
 contents and lengths, hourly shortfall bounds and thermodynamic admissibility
@@ -23,7 +23,7 @@ import json
 import os
 from typing import Any, Dict
 
-from ies_optimiser.models import INPUT_FORMAT_VERSION, Case
+from ies_optimiser.models import INPUT_FORMAT_VERSION, Case, SolveOptions
 from ies_optimiser.results import RESULT_FORMAT_VERSION, Result
 
 BASE_ID = 'https://github.com/greoux-research/ies-optimiser/schemas/'
@@ -36,14 +36,15 @@ STRUCTURE_ONLY = ('This schema describes structure only. Unique identifiers, ref
 FILES = {
     'input': 'ies-optimiser-input-' + str(INPUT_FORMAT_VERSION) + '.schema.json',
     'result': 'ies-optimiser-result-' + str(RESULT_FORMAT_VERSION) + '.schema.json',
+    'options': 'ies-optimiser-options-1.schema.json',
 }
 
 
 def path(kind: str) -> str:
-    """The absolute path of the shipped schema file for 'input' or 'result'
+    """The absolute path of the shipped schema file for a supported kind
     (inside the installed package)."""
     if kind not in FILES:
-        raise ValueError('unknown schema \'' + kind + '\' (expected input or result)')
+        raise ValueError('unknown schema \'' + kind + '\' (expected input, result or options)')
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', FILES[kind])
 
 
@@ -86,6 +87,17 @@ def result_schema() -> Dict[str, Any]:
                      'UnsuccessfulResult when it is 0 (inputs, status and provenance only).')
 
 
+def options_schema() -> Dict[str, Any]:
+    """The run options accepted by the Python API; file contents remain semantic checks."""
+    schema = _envelope(SolveOptions.model_json_schema(by_alias=True, mode='validation'), 'options', 1,
+                       'IES Optimiser run options',
+                       'Options supplied as name=value on the command line or a mapping in Python. '
+                       'The command line additionally accepts a comma-separated hourly coverage list.')
+    schema['description'] = ('Run-option structure only. CSV contents, hourly list lengths and the case-dependent '
+                             'meaning of options are checked by ies-optimiser validate CASE.json with those options.')
+    return schema
+
+
 def render(schema: Dict[str, Any]) -> str:
     """The text shipped in ies_optimiser/data/ and printed by the command line."""
     return json.dumps(schema, indent=2, ensure_ascii=False) + '\n'
@@ -97,4 +109,6 @@ def generate(kind: str) -> str:
         return render(input_schema())
     if kind == 'result':
         return render(result_schema())
-    raise ValueError('unknown schema \'' + kind + '\' (expected input or result)')
+    if kind == 'options':
+        return render(options_schema())
+    raise ValueError('unknown schema \'' + kind + '\' (expected input, result or options)')

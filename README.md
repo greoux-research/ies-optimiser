@@ -46,6 +46,29 @@ if result.optimal and result.accounting_ok:
 
 `ies-optimiser --help` lists the commands and all run options; `ies-optimiser schema input` prints the JSON Schema of an input.
 
+To require at least 90% of each hour's final electricity demand to be served:
+
+```bash
+ies-optimiser examples/electricity-storage/case.json hourly-coverage-floor=0.9
+```
+
+The floor also accepts a CSV path or comma-separated list (values in `[0, 1]`
+used as given). See the [API guide](https://github.com/greoux-research/ies-optimiser/blob/main/docs/ies-optimiser-api.md#hourly-electricity-coverage-floor)
+for path resolution and diagnostics.
+
+For a portable, checked record of a run, choose a new directory:
+
+```bash
+ies-optimiser validate examples/electricity-storage/case.json --json
+ies-optimiser run examples/electricity-storage/case.json --output runs/my-study --json
+ies-optimiser verify runs/my-study --json
+```
+
+`ies-optimiser guide` prints the modelling workflow shipped with the installed
+package. `ies-optimiser schema options` prints the run-options schema. The run
+bundle keeps the source case, consumed profiles, replay inputs, native result
+and hashes; verification checks saved evidence without rerunning the solver.
+
 ## Licence and data
 
 The code, the thermodynamics sources and the synthetic examples are under the MIT licence. The illustrative datasets in [`datasets/`](https://github.com/greoux-research/ies-optimiser/tree/main/datasets) are not part of the installed package: their hourly profiles are derived from Renewables.ninja and licensed CC BY-NC 4.0.
@@ -63,14 +86,3 @@ Every result carries a `provenance` block recording the code, the digests of the
 ## How to cite IES Optimiser
 
 Gréoux Research (2024). IES Optimiser: a linear optimiser-based integrated energy system modelling environment. https://github.com/greoux-research/ies-optimiser
-
-
-To require at least 90% of each hour's final electricity demand to be served:
-
-```bash
-ies-optimiser examples/electricity-storage/case.json hourly-coverage-floor=0.9
-```
-
-The floor also accepts a CSV path or comma-separated list (values in `[0, 1]`
-used as given). See the [API guide](docs/ies-optimiser-api.md#hourly-electricity-coverage-floor)
-for path resolution, replay and structured diagnostics.

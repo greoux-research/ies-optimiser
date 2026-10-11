@@ -55,7 +55,8 @@ def test_one_version_from_the_distribution_metadata():
 def test_resources_are_inside_the_package():
     package = os.path.dirname(os.path.abspath(ies_optimiser.__file__))
     assert os.path.isfile(os.path.join(package, 'py.typed'))
-    for kind in ('input', 'result'):
+    assert os.path.isfile(os.path.join(package, 'assistant-guide.md'))
+    for kind in ('input', 'result', 'options'):
         assert os.path.dirname(schemas.path(kind)) == os.path.join(package, 'data')
         with open(schemas.path(kind), encoding='utf-8') as f:
             assert json.load(f)['x-ies-optimiser-format']['kind'] == kind

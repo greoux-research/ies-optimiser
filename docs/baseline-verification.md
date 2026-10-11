@@ -1872,3 +1872,25 @@ This release adds hourly coverage floors and result format 2. The preceding
 local verification establishes unchanged numerical behaviour without the new
 option; the release workflow establishes installation and artifact verification
 across the supported platforms. It does not validate a particular RTC application.
+
+## 2026-10-11 — 2026.10.1 development verification
+
+The changes add packaging and workflow interfaces (`guide`, `schema options`,
+portable bundles and JSON run outcomes). No optimisation equation, solver
+setting, input profile convention or result calculation was changed.
+
+- `python -P -m pytest tests/test_bundle.py tests/test_schemas.py
+  tests/test_cli_commands.py tests/test_packaging.py -q`: 59 passed. Bundle
+  tests include short, 24-hour real solves for successful and infeasible cases,
+  replay of scalar, list and CSV coverage floors, and detection of changed
+  saved files or a profile changed during the solve.
+- `python -P -m mypy`: passed; `python -P tools/generate_schemas.py --check`:
+  passed; `git diff --check`: passed.
+- A source distribution and Linux wheel were built from this checkout;
+  `tools/check_dist.py` passed for both. A separate environment installed the
+  wheel, printed its guide and options schema, saved a 24-hour profile-based
+  bundle through the public API, and verified it through the installed CLI.
+
+The eight annual reference configurations were not rerun for this workflow
+change. These checks establish the new interfaces and short-run bundle path,
+not numerical equivalence of a newly solved annual case to stored references.

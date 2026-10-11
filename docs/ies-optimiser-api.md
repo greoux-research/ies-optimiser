@@ -217,6 +217,7 @@ else:
   - **Optimal** (`solver.stat_succ` 1): inputs, hourly and annual results, `system` totals and checks.
   - **Unsuccessful** (`stat_succ` 0): inputs, solver status and provenance only. No result field and no placeholder is present, so an unavailable output cannot be read as a number.
 - **Version and format:** every result records `provenance.result_format_version` (2) and `provenance.input_format`.
+
 - **Sentinels kept for compatibility:**
   - `kpis` values are -1 where not applicable.
   - `carbon_cap` / `reliability_cap` are -1 when that option was not given.
@@ -235,6 +236,44 @@ Three conventions matter when reading results:
   - `demand_match` is the balance-row dual, with every bound held fixed.
   - `demand_marginal` adds the reduced cost where unmet demand sits at a bound set by demand. It is a subgradient: exact except at breakpoints, where it is one valid value among several.
   - The carbon and reliability cap values are the duals of those caps, with `*_detail` records of what was observed.
+
+#### Installed guide and run bundles
+
+`ies-optimiser guide` prints the modelling guide that belongs to the installed
+version. `ies-optimiser schema options` prints the machine-readable run-options
+schema; like the case schema, it cannot check the contents of referenced CSVs.
+Use `validate --json` for those checks.
+
+`ies-optimiser run CASE.json --output NEW_DIRECTORY [name=value ...] [--json]`
+solves once and writes a new directory. An existing destination is refused.
+In JSON mode stdout is one document with `command`, `outcome`, `status`,
+`bundle` and `diagnostics` on a completed run. The outcomes are `success`,
+`non_optimal` and `accounting_failure`. Input refusals return
+`input_invalid` with structured diagnostics; file or bundle failures return
+`bundle_error`. The existing solve command retains its behaviour.
+
+`ies-optimiser verify DIRECTORY --json` checks a saved bundle without solving.
+The bundle contains `manifest.json`, `result.json`, `inputs/source-case.json`
+(the exact original bytes), `inputs/case.json` (a portable canonical replay
+form), `inputs/options.json`, `inputs/config.json`, and copies of consumed
+profiles. If a coverage floor came from CSV, its source bytes are also kept;
+replay uses the effective inline values. The manifest lists each file's size
+and SHA-256 digest, original profile references and run outcome. Verification
+checks those bytes, reconstructs the source case from replay references, and
+compares saved options, configuration and input identities with result
+provenance. It checks result shape and accounting outcome. It is a consistency
+check, not a digital signature, independent validation of source data or a new
+solve. The native result and source case can contain local paths and environment
+details; review them before sharing. Bundle creation checks file bytes before
+and after solving but does not lock source files against concurrent edits.
+
+Python provides `ies_optimiser.save_bundle(case_path, new_directory,
+options=..., config=...)` and `ies_optimiser.read_bundle(directory)`. The former
+returns the manifest after writing and verifying; the latter returns it after
+verification. Replay with the bundled case and options, using `hours` and
+`storage_closes_the_year` from `inputs/config.json`. Another solver build may
+return a different equally optimal dispatch. Bundles require the packaged
+thermodynamics executable.
 
 ---
 

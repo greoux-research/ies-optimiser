@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/greoux-research/ies-optimiser/schemas/ies-optimiser-options-1.schema.json",
+  "title": "IES Optimiser run options",
+  "description": "Run-option structure only. CSV contents, hourly list lengths and the case-dependent meaning of options are checked by ies-optimiser validate CASE.json with those options.",
+  "x-ies-optimiser-format": {
+    "kind": "options",
+    "version": 1
+  },
+  "additionalProperties": false,
+  "properties": {
+    "carbon-constraint": {
+      "description": "Emissions cap, in kg CO2eq per MWh of annual primary electricity demand, applied to total system emissions. Any finite value; a negative cap requires net removal.",
+      "examples": [
+        50.0
+      ],
+      "title": "Carbon constraint",
+      "type": "number"
+    },
+    "non-served-power-constraint": {
+      "description": "Cap on annual unmet electricity, as a fraction of annual electricity demand, in [0, 1].",
+      "examples": [
+        0.05
+      ],
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Non served power constraint",
+      "type": "number"
+    },
+    "hourly-coverage-floor": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "description": "CSV path",
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "items": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "Minimum served share of electricity demand only in each hour: unmet[h] <= (1 - floor[h]) * demand[h]. Number, CSV path string, or list of numbers in [0, 1]; values used as given, never rescaled. A string is a path. Relative paths resolve against the input file directory or RunConfig.profile_base, never the working directory.",
+      "title": "Hourly coverage floor"
+    }
+  },
+  "type": "object"
+}

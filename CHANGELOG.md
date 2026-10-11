@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026.10.1 — unreleased
+
+- Add a modelling guide available from an installed package with
+  `ies-optimiser guide`.
+- Ship an options JSON Schema and expose it with `ies-optimiser schema options`.
+- Add `ies-optimiser run` / `verify` and `save_bundle` / `read_bundle` for
+  portable, consistency-checked run bundles, with JSON command outcomes.
+- Keep the original solve command and its output format unchanged.
+
 ## 2026.10.0 — 2026-10-07
 
 - Add the optional `hourly-coverage-floor` run option: scalar, CSV or inline list

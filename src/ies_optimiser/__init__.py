@@ -25,6 +25,7 @@ from ies_optimiser.errors import Diagnostic, IesOptimiserError, InputError, Ther
 from ies_optimiser.fcn import RunConfig
 from ies_optimiser.models import (Case, CommodityDemand, Demand, ElectricityDemand, Generator, Process, SolveOptions,
                                   Storage)
+from ies_optimiser.bundle import read_bundle, save_bundle
 
 __version__: str = _version()
 
@@ -32,6 +33,7 @@ __all__ = [
     '__version__',
     'solve', 'validate', 'load_input', 'parse_case', 'to_canonical', 'check_options', 'write_result',
     'output_path', 'SolveResult', 'ValidationReport', 'RunConfig',
+    'save_bundle', 'read_bundle',
     'IesOptimiserError', 'InputError', 'ThermoError', 'Diagnostic',
     'Case', 'Demand', 'ElectricityDemand', 'CommodityDemand', 'Generator', 'Storage', 'Process', 'SolveOptions',
 ]

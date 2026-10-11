@@ -44,7 +44,7 @@ def base():
 
 # --- reproducibility --------------------------------------------------------------------
 
-@pytest.mark.parametrize('kind', ['input', 'result'])
+@pytest.mark.parametrize('kind', ['input', 'result', 'options'])
 def test_checked_in_schemas_match_the_current_models(kind):
     assert checked_in(kind) == schemas.generate(kind), \
         'schemas/ is stale: run python tools/generate_schemas.py'
@@ -56,7 +56,7 @@ def test_the_generation_command_agrees():
     assert out.returncode == 0, out.stdout
 
 
-@pytest.mark.parametrize('kind, version', [('input', 1), ('result', 2)])
+@pytest.mark.parametrize('kind, version', [('input', 1), ('result', 2), ('options', 1)])
 def test_schemas_are_versioned_and_say_they_are_structural(kind, version):
     schema = json.loads(checked_in(kind))
     assert schema['x-ies-optimiser-format'] == {'kind': kind, 'version': version}
